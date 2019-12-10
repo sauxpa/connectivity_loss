@@ -7,4 +7,4 @@ More formally, it penalizes the L1 deviation of the 0-dimensional persistence ba
 calculated on the Vieteoris-Rips filtration of the latent space. The persistence diagram encodes homological information about the 
 latent space, in particular 0-homology characterizes the connectivity of the space.
 
-Calculations of persistence diagrams is performed with Gudhi (http://gudhi.gforge.inria.fr/).
+Calculations of persistence diagrams are performed with Gudhi (http://gudhi.gforge.inria.fr/).
