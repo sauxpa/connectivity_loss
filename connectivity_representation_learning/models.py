@@ -7,6 +7,26 @@ from tqdm import tqdm
 
 from .utils import triangular_from_linear_index, linear_index_from_triangular
 
+def persistence_lengths(batch, dim=0, device=torch.device('cpu')):
+    """Use Gudhi to calculate persistence diagrams.
+
+    batch: point clouds input,
+    dim: homology dimension (0 for connectivity)
+    """
+    rips_complex = gd.RipsComplex(batch, max_edge_length=0.5)
+    simplex_tree = rips_complex.create_simplex_tree(max_dimension=2)
+    simplex_tree.persistence(homology_coeff_field=2, min_persistence=0)
+    persistence_intervals = simplex_tree.persistence_intervals_in_dimension(dim)[:, 1]
+    return torch.FloatTensor(persistence_intervals).to(device)
+    
+def barcode_stats(data, dim=0, device=torch.device('cpu')):
+    """Min, average and max barcode lengths of data.
+    """
+    # remove inf
+    barcodes = np.ma.masked_invalid(persistence_lengths(data, dim=dim, device=device))
+    return [barcodes.min(), barcodes.mean(), barcodes.max()]
+    
+    
 class Encoder(nn.Module):
     def __init__(self, input_size, hidden_size, emb_size, activation='ReLU'):
         super(Encoder, self).__init__()
@@ -64,7 +84,7 @@ class Autoencoder(nn.Module):
     def forward(self, x):
         return self.decoder(self.encoder(x))
 
-
+    
 class Model(nn.Module):
     """Autoencoder with connectivity penalization.
     """
@@ -77,7 +97,7 @@ class Model(nn.Module):
                  use_cuda=False,
                  lr=0.001,
                  eta = 2.0,
-                 eps=1e-4,
+                 tol=1e-4,
                  connectivity_penalty=1.0,
                  activation='ReLU',
                 ):
@@ -89,7 +109,7 @@ class Model(nn.Module):
         # parameter for the connectivity loss
         self.eta = eta
         # numerical precision for distance lookup
-        self.eps = eps
+        self.tol = tol
         # weight to balance reconstruction and connectivity loss during training
         self.connectivity_penalty = connectivity_penalty
 
@@ -106,30 +126,20 @@ class Model(nn.Module):
         # used for caching during training
         self.pdist = None
         self.zero_persistence_lengths = None
-
+        
     @property
     def device(self):
         return torch.device('cuda' if torch.cuda.is_available() and self.use_cuda else 'cpu')
 
-    def persistence_lengths(self, batch, dim=0):
-        """Use Gudhi to calculate persistence diagrams.
-        
-        batch: point clouds input,
-        dim: homology dimension (0 for connectivity)
-        """
-        rips_complex = gd.RipsComplex(batch, max_edge_length=0.5)
-        simplex_tree = rips_complex.create_simplex_tree(max_dimension=2)
-        simplex_tree.persistence(homology_coeff_field=2, min_persistence=0)
-        persistence_intervals = simplex_tree.persistence_intervals_in_dimension(dim)[:, 1]
-        return torch.FloatTensor(persistence_intervals).to(self.device)
+    
 
     def indicator(self, idx):
         """Returns True if idx corresponds to a pair of points the distance of which
         corresponds to critical filtration value in the Vietoris-Rips complex.
         """
         k = linear_index_from_triangular(self.batch_size, idx[0], idx[1])
-        return True in torch.isclose(self.pdist[k], self.zero_persistence_lengths, self.eps)
-
+        return True in torch.isclose(self.pdist[k], self.zero_persistence_lengths, self.tol)
+    
     def train(self, data, n_epochs):
         loader = torch.utils.data.DataLoader(data, batch_size=self.batch_size, shuffle=True)
 
@@ -160,7 +170,7 @@ class Model(nn.Module):
                         # the upper triangle of the pairwise
                         # distance tensor.
                         self.pdist = F.pdist(latent)
-                        self.zero_persistence_lengths = self.persistence_lengths(latent, 0)
+                        self.zero_persistence_lengths = persistence_lengths(latent, dim=0, device=self.device)
                         indicators = torch.FloatTensor(
                             [self.indicator(triangular_from_linear_index(self.batch_size, k)) for k in range(self.pdist.shape[0])]
                         ).to(self.device)
