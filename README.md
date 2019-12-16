@@ -9,8 +9,14 @@ latent space, in particular 0-homology characterizes the connectivity of the spa
 
 Calculations of persistence diagrams are performed with Gudhi (http://gudhi.gforge.inria.fr/).
 
-*  	connectivity_high_dim : investigate the connectivity of random point clouds as a function of dimension via their 0-persistence diagrams.
+* cifar_reconstruction : comparison of standard convolutional autoencoder vs connectivity-optimized ones, with and without dimension branching.
 
-*  	gaussian_toy_reconstruction : 2d and 3d examples of autoencoder regularization via connectivity loss.
+* connectivity_high_dim : investigate the connectivity of random point clouds as a function of dimension via their 0-persistence diagrams.
+
+* gaussian_high_dim_toy_reconstruction : high-dimensional examples of autoencoder regularization via connectivity loss.
+
+* gaussian_high_dim_toy_reconstruction_branches : high-dimensional examples of autoencoder regularization via connectivity loss using dimensiona branching.
+
+* gaussian_toy_reconstruction : 2d and 3d examples of autoencoder regularization via connectivity loss.
 
 * stronger_connectivity_denser_latent_space : similar to gaussian_toy_reconstruction, visualize the densification effect of the latent space with higher penalties on the connectivity loss.
