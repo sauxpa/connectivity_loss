@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from .networks import Autoencoder
+from .networks import Autoencoder, AutoencoderConv2D
 from .persistence import persistence_lengths
 from .utils import triangular_from_linear_index, linear_index_from_triangular
     
@@ -12,10 +12,7 @@ class Model(nn.Module):
     """Autoencoder with connectivity penalization.
     """
     def __init__(self,
-                 input_size,
-                 hidden_size_encoder,
-                 emb_size,
-                 hidden_size_decoder,
+                 config_layers,
                  batch_size=50,
                  dim_batch=1,
                  use_cuda=False,
@@ -29,12 +26,14 @@ class Model(nn.Module):
 
         self.use_cuda = use_cuda
         self.batch_size = batch_size
+        
+        self.config_layers = config_layers
 
         # number of dimensional batches
         self.dim_batch = dim_batch
         
         # dim of latent space
-        self.emb_size = emb_size
+        self.emb_size = config_layers['emb_size']
         
         # parameter for the connectivity loss
         self.eta = eta
@@ -43,14 +42,25 @@ class Model(nn.Module):
         # weight to balance reconstruction and connectivity loss during training
         self.connectivity_penalty = connectivity_penalty
 
-        self.autoencoder = Autoencoder(
-            input_size,
-            hidden_size_encoder,
-            emb_size,
-            hidden_size_decoder,
-            dim_batch,
-            activation,
-        ).to(self.device)
+        if config_layers['type'] == 'conv2d':
+            self.autoencoder = AutoencoderConv2D(
+                config_layers['input_size'],
+                config_layers['emb_size'],
+                config_layers['filters'],
+                dim_batch,
+                activation,
+            ).to(self.device)
+        elif config_layers['type'] == 'mlp':
+            self.autoencoder = Autoencoder(
+                config_layers['input_size'],
+                config_layers['hidden_size_encoder'],
+                config_layers['emb_size'],
+                config_layers['hidden_size_decoder'],
+                dim_batch,
+                activation,
+            ).to(self.device)        
+        else:
+            raise Exception('Unknown layers type {}'.format(config_layers['type']))
 
         self.optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=lr)
 
