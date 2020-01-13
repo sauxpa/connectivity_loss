@@ -42,6 +42,7 @@ def barcode_stats(data,
                                    dim=dim,
                                    device=device,
                                    max_edge_length=max_edge_length,
+                                   remove_inf=True,
                                   )
     
     return [barcodes.min(), barcodes.mean(), barcodes.max()]
