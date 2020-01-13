@@ -6,6 +6,7 @@ def persistence_lengths(batch,
                         dim=0, 
                         device=torch.device('cpu'), 
                         max_edge_length=np.inf,
+                        remove_inf=False,
                        ):
     """Use Gudhi to calculate persistence diagrams.
 
@@ -19,8 +20,12 @@ def persistence_lengths(batch,
     simplex_tree = rips_complex.create_simplex_tree(max_dimension=dim)
     simplex_tree.persistence(homology_coeff_field=2, min_persistence=0)
     persistence_intervals = simplex_tree.persistence_intervals_in_dimension(dim)
-    return torch.FloatTensor(persistence_intervals[:, 1]-persistence_intervals[:, 0]).to(device)
-    
+    barcode = torch.FloatTensor(persistence_intervals[:, 1]-persistence_intervals[:, 0]).to(device)
+    if remove_inf:
+        barcode = np.ma.masked_invalid(barcode)
+    return barcode
+
+
 def barcode_stats(data, 
                   dim=0, 
                   device=torch.device('cpu'),
@@ -33,10 +38,10 @@ def barcode_stats(data,
     max_edge_length: threshold on the Vietoris-Rips scale parameter. By default, it builds
     all the simplices in the filtration.
     """
-    # remove inf
-    barcodes = np.ma.masked_invalid(persistence_lengths(data, 
-                                                        dim=dim,
-                                                        device=device,
-                                                        max_edge_length=max_edge_length,
-                                                       ))
+    barcodes = persistence_lengths(data,
+                                   dim=dim,
+                                   device=device,
+                                   max_edge_length=max_edge_length,
+                                  )
+    
     return [barcodes.min(), barcodes.mean(), barcodes.max()]
