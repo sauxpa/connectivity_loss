@@ -8,6 +8,18 @@ from .networks import Autoencoder, AutoencoderConv2D
 from .persistence import persistence_lengths
 from .utils import triangular_from_linear_index, linear_index_from_triangular
     
+    
+class ConnectivityLayer(nn.Module):
+    def __init__(self, connectivity_penalty, eta=torch.rand(1)):
+        super(ConnectivityLayer, self).__init__()
+        self.eta = nn.Parameter(eta)
+        self.eta.requires_grad = True
+    
+        self.connectivity_penalty = connectivity_penalty
+    
+    def forward(self, pdist, indicators):
+        return torch.sum(indicators*torch.abs(self.eta-pdist)) * self.connectivity_penalty
+    
 class Model(nn.Module):
     """Autoencoder with connectivity penalization.
     """
@@ -21,6 +33,7 @@ class Model(nn.Module):
                  tol=1e-4,
                  connectivity_penalty=1.0,
                  activation='ReLU',
+                 use_trainable_eta=False,
                 ):
         super(Model, self).__init__()
 
@@ -42,6 +55,10 @@ class Model(nn.Module):
         # weight to balance reconstruction and connectivity loss during training
         self.connectivity_penalty = connectivity_penalty
 
+        self.connectivity_layer = ConnectivityLayer(self.connectivity_penalty, 
+                                                    torch.tensor(self.eta),
+                                                   )
+        
         if config_layers['type'] == 'conv2d':
             self.autoencoder = AutoencoderConv2D(
                 config_layers['input_size'],
@@ -62,11 +79,15 @@ class Model(nn.Module):
         else:
             raise Exception('Unknown layers type {}'.format(config_layers['type']))
 
-        self.optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=lr)
+        parameters = list(self.autoencoder.parameters())+list(self.connectivity_layer.parameters())
+        self.optimizer = torch.optim.Adam(parameters, lr=lr)
 
         # used for caching during training
         self.pdist = None
         self.zero_persistence_lengths = None
+        
+        # whether to learn eta during training or use a prescribed value 
+        self.use_trainable_eta=use_trainable_eta
         
     @property
     def device(self):
@@ -129,7 +150,15 @@ class Model(nn.Module):
                             ).to(self.device)
                             
                             # compute connectivity loss on the current branch
-                            connectivity_loss_branches[b] = torch.sum(indicators*torch.abs(self.eta-self.pdist)) * self.connectivity_penalty
+                            if self.use_trainable_eta:
+                                connectivity_loss_branches[b] = self.connectivity_layer.forward(
+                                self.pdist,
+                                indicators
+                            )
+                            else:
+                                connectivity_loss_branches[b] = torch.sum(indicators*torch.abs(self.eta-self.pdist)) * self.connectivity_penalty + 0.01*torch.norm(self.eta-self.connectivity_layer.eta)
+                        
+                        
                         
                         # aggregate all the connectivity losses in the dimensional batches
                         connectivity_loss = torch.sum(connectivity_loss_branches)
