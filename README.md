@@ -22,3 +22,6 @@ Calculations of persistence diagrams are performed with Gudhi (http://gudhi.gfor
 * gaussian_toy_reconstruction_trainable_eta : make eta (the target barcode length) a trainable parameter that the netowrks optimize dring training, rather than a manually tuned hyperparameter.
 
 * stronger_connectivity_denser_latent_space : similar to gaussian_toy_reconstruction, visualize the densification effect of the latent space with higher penalties on the connectivity loss.
+
+<img src="./cifar_reconstruction.png"
+     style="float: left; margin-right: 10px;" />
